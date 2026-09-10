@@ -162,6 +162,7 @@ change this. Do not `systemctl disable ollama` on nemo until HA is repointed.
 | `Unknown architecture` from vLLM | bump `VLLM_IMAGE` in `nodes/<node>/.env` (v0.29.0 is current); Qwen3.8 = `Qwen3_5ForConditionalGeneration`, present since v0.27.1 |
 | MoE NVFP4 model slow / wrong on GB10 or Thor | `VLLM_USE_FLASHINFER_MOE_FP4=0` + `--moe-backend marlin` are set; don't remove them |
 | Nemotron 3.5 fails on the DSpark draft | drop the `--speculative-config` line; it is an optimization only |
+| vLLM on Thor: `Free memory on device cuda:0 (20/122 GiB) … is less than desired GPU memory utilization` right after stopping another big model | on JetPack 7 (r38.4) the stopped container's GPU allocation can stay owned by the driver after a clean exit: `free` shows ~85 GB used with no process holding it (`nvidia-smi --query-compute-apps` lists only live PIDs). Observed 2026-09-10 after stopping the 10-day-old `vllm-qwen3-coder`. Only a reboot released it. Plan cutovers as: stop old → reboot → deploy |
 | VLM returns 500 on an image | image must be ≥ 28×28 px (Qwen-VL patch size); tiny test pixels fail |
 | Home Assistant conversation slow after nemo work | HA's gemma4 was unloaded; first call reloads it (~30 s) |
 | name doesn't resolve | tailnet: `tailscale status`; lab: `dig @172.29.0.153 <name>.batfang.lab` |
