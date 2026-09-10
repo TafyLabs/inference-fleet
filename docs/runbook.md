@@ -33,6 +33,15 @@ ACTION=sync scripts/deploy.sh spark0 && ssh -i ~/.ssh/radlab -t amigx@spark0 bas
 Piping the script over stdin (`'bash -s' < …`) does not work: with stdin taken, `ssh -t`
 cannot allocate a terminal and sudo has nowhere to read the password.
 
+The operator Mac's `~/.ssh/config` multiplexes connections (`ControlMaster auto`,
+`ControlPersist 1800`). Sessions that reuse a master opened *before* the bootstrap keep the
+old group list and still get "permission denied" on the docker socket. Close the master once:
+
+```bash
+# [mac]
+ssh -O exit -i ~/.ssh/radlab amigx@thor; ssh -O exit -i ~/.ssh/radlab amigx@spark0
+```
+
 It adds `amigx` to the `docker` group, registers the NVIDIA runtime with docker
 (`nvidia-ctk runtime configure --runtime=docker`), creates the directories, and installs the
 `hf` CLI under `~/.local/bin` via `uv`. **Log out and back in** afterwards (`docker ps` must
