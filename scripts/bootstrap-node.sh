@@ -32,6 +32,20 @@ else
   echo "  WARN: nvidia-ctk not found — install nvidia-container-toolkit first" >&2
 fi
 
+echo "[2b/5] docker compose v2 plugin (user-local; Ubuntu's docker.io package ships none)"
+if docker compose version >/dev/null 2>&1 || sudo docker compose version >/dev/null 2>&1; then
+  echo "  compose present"
+else
+  tag=$(curl -fsSL https://api.github.com/repos/docker/compose/releases/latest | python3 -c 'import sys,json;print(json.load(sys.stdin)["tag_name"])')
+  arch=$(uname -m); [[ "$arch" == "arm64" ]] && arch=aarch64
+  mkdir -p "$HOME/.docker/cli-plugins"; cd "$HOME/.docker/cli-plugins"
+  curl -fsSL -o docker-compose "https://github.com/docker/compose/releases/download/$tag/docker-compose-linux-$arch"
+  curl -fsSL -o docker-compose.sha256 "https://github.com/docker/compose/releases/download/$tag/docker-compose-linux-$arch.sha256"
+  sed "s#\*\?docker-compose-linux-$arch#docker-compose#" docker-compose.sha256 | sha256sum -c - && rm docker-compose.sha256
+  chmod +x docker-compose; cd - >/dev/null
+  echo "  installed compose $tag to ~/.docker/cli-plugins"
+fi
+
 echo "[3/5] directories"
 mkdir -p "$HOME/inference/logs" "$HOME/inference/plugins" "$HOME/models" \
          "$HOME/.cache/huggingface" "$HOME/.cache/vllm"

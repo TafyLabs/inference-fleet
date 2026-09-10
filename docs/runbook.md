@@ -43,8 +43,9 @@ ssh -O exit -i ~/.ssh/radlab amigx@thor; ssh -O exit -i ~/.ssh/radlab amigx@spar
 ```
 
 It adds `amigx` to the `docker` group, registers the NVIDIA runtime with docker
-(`nvidia-ctk runtime configure --runtime=docker`), creates the directories, and installs the
-`hf` CLI under `~/.local/bin` via `uv`. **Log out and back in** afterwards (`docker ps` must
+(`nvidia-ctk runtime configure --runtime=docker`), installs the compose v2 CLI plugin under
+`~/.docker/cli-plugins` if the host's docker has none (thor's Ubuntu `docker.io` package),
+creates the directories, and installs the `hf` CLI under `~/.local/bin` via `uv`. **Log out and back in** afterwards (`docker ps` must
 work without sudo). nema and nemo already satisfy all of this.
 
 ## 2. Models
