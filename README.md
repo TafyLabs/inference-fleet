@@ -72,7 +72,7 @@ dns/                 batfang.lab records for the fleet
 | Node | Live | Notes |
 |---|---|---|
 | `nema` | `core` (9080 Qwen3-4B router, 9082 embeddings) | VLM validated as a swap-in only (router must stop first on 8 GB) |
-| `nemo` | nothing | stack validated end to end, then taken down: Home Assistant pins `gemma4:e4b` in the host's Ollama. Decision pending, runbook §6 |
+| `nemo` | `core` (8080 Qwen3-8B) | Home Assistant keeps using nemo's Ollama; its model must move `gemma4:e4b` → `qwen3:4b` (pulled, fits beside core). Runbook §6 |
 | `thor` | `robotics` + `agent` (8000 Qwen3.8-27B, 8001 Nemotron 3.5, 8002 Qwen3-VL-8B, 8004 Qwen3-8B) | upstream vLLM v0.27.1 proven on JetPack 7. Legacy `Qwen3-Coder-Next` container stopped (kept for rollback). 8 GB headroom with D+E both resident — run one profile if anything else needs memory |
 | `spark0` | `agent` = Profile A (8000 Qwen3.6-35B, 8001 Nemotron 3.5, 8004 Qwen3-8B) | Qwen3.6 at ~90 tok/s. 13 GB headroom |
 

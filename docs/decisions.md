@@ -14,7 +14,7 @@ deliberately differs, and why.
 | 5 | Thor 8001 = Nemotron 3.5 Lightning | same | but batclaw-openfang's `audio_base_url` reserved 8001 for faster-whisper (not currently running). Whisper moves to 8100 |
 | 6 | Omni id `NVIDIA-Nemotron-3-Nano-Omni-30B-A3B-Reasoning-NVFP4` | `nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning-NVFP4` | that is the repo's actual name (no `NVIDIA-` prefix) |
 | 7 | Qwen3-VL-8B "AWQ" | `cpatonn/Qwen3-VL-8B-Instruct-AWQ-4bit` | Qwen publishes FP8, not AWQ, for Qwen3-VL; this is the community W4A16 |
-| 8 | nemo Qwen3-8B "resident" | validated but **not left running** | Home Assistant pins `gemma4:e4b` in nemo's Ollama (10.6 GB); both cannot be resident. Operator decision — runbook §6 |
+| 8 | nemo Qwen3-8B "resident" | resident since 2026-09-10 11:00 | Home Assistant stays on nemo's Ollama but with `qwen3:4b` (3.6 GB) instead of `gemma4:e4b` (10.6 GB); measured together: 3.5 GB free. The operator's first choice (nema's Ollama) was measured and does not fit next to nema's router — runbook §6 |
 | 9 | DGX Spark Qwen3-8B "NVFP4/W4A16" | `nvidia/Qwen3-8B-NVFP4` | official NVIDIA NVFP4 checkpoint exists (Sept 2025) |
 | 10 | vLLM flags | per-model flags copied from NVIDIA's DGX Spark recipes on each model card (marlin MoE backend, fp8 KV, flashinfer attention, MTP/DSpark speculation, `qwen3_xml`/`qwen3_coder`/`nemotron_v3` parsers) | those are the tested configurations for GB10; Thor gets the same set pending validation |
 
@@ -44,7 +44,7 @@ deliberately differs, and why.
 1. ~~Does upstream vLLM v0.27.1 arm64 run on Thor's sm_110 with these NVFP4 checkpoints?~~ Yes (2026-09-10).
 2. ~~Nemotron 3.5 DSpark speculative decoding on Thor.~~ Starts and serves; throughput not yet measured against no-draft.
 3. NemoClaw on nema — still wanted? It costs 8080 and ~1 GB on an 8 GB board.
-4. Home Assistant's conversation agent — which of the four options in runbook §6.
+4. ~~Home Assistant's conversation agent~~ — stays on nemo's Ollama with `qwen3:4b`; operator switches the model in the HA UI (runbook §6).
 5. Static DHCP reservations for the four LAN addresses (UniFi) so the zone stops drifting.
 6. TensorRT Edge-LLM / GR00T VLA track on Thor — separate policy-model endpoint, not in this repo yet.
 7. OpenFang still points at `Qwen3-Coder-Next` on thor:8000 (now `Qwen3.8-27B`) and at `gemma-2-2b-cheap-router` on nema:9080 (now `qwen3-4b-instruct-2507`) — repoint in batclaw-openfang.

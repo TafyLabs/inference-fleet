@@ -117,26 +117,53 @@ NVIDIA's OpenClaw / NemoClaw / Hermes DGX Spark playbooks expect exactly this en
 `http://spark0:8000/v1`, model `Qwen3.6-35B-A3B`. Switch profiles with `ACTION=down` first;
 `heavy` (Nemotron Super 120B, 0.88 of memory) must run alone.
 
-## 6. nemo and Home Assistant (decision needed)
+## 6. nemo and Home Assistant
 
 nemo also runs system **Ollama** on :11434. Home Assistant (`172.16.3.3`,
-`homeassistant.krad.internal`) calls it a few times a day and keeps `gemma4:e4b` loaded
-with `keep_alive=-1` (~10.6 GB of 15.6 GB). With that resident, the `core` profile (Qwen3-8B,
-~6.5 GB) does not fit. The stack was validated on 2026-09-10 in a temporary window (the
-model was unloaded via the API, `core`+`vlm` tested, then torn down; HA reloads its model on
-its next call).
+`homeassistant.krad.internal`) calls it a few times a day (~19:40) and, until 2026-09-10, kept
+`gemma4:e4b` loaded with `keep_alive=-1` (~10.6 GB of 15.6 GB) — which left no room for the
+`core` profile.
 
-Options, cheapest first:
-1. Point HA's Ollama agent at a smaller model on nemo (`ollama pull qwen3:4b` or move
-   `gemma4:e2b` there) — frees ~6 GB; `core` fits.
-2. Point HA at nema's Ollama (`nema:11434`, already has `gemma4:e2b`, `qwen3.5:4b`,
-   `nemotron-3-nano:4b`) — nema then needs the `vlm` profile off (8 GB board).
-3. Point HA at an OpenAI-compatible endpoint (nemo:8080 `qwen3-8b`) via HA's OpenAI-compatible
-   conversation integration — then Ollama on nemo can be disabled entirely.
-4. Leave HA as is and treat nemo as HA's box: run only `vlm` (3.5 GB) next to it.
+**Measured 2026-09-10 (Ollama 0.20.4, models loaded alone, `free` used/available):**
 
-Ollama's `keep_alive` is set by the caller (HA), so a server-side `OLLAMA_KEEP_ALIVE` will not
-change this. Do not `systemctl disable ollama` on nemo until HA is repointed.
+| Host | Model in Ollama | Loaded size | Speed | Host after load |
+|---|---|---|---|---|
+| nema (8 GB, router stopped) | `nemotron-3-nano:4b` | 5.3 GB | 8.1 tok/s | 559 MB available |
+| nema | `qwen3.5:4b` | 6.3 GB | 4.6 tok/s | 89 MB available (swapping) |
+| nema | `gemma4:e2b` | 7.8 GB | 8.5 tok/s | 230 MB available (swapping) |
+| nemo (16 GB, `core` resident) | `qwen3:4b` | 3.6 GB | 14.3 tok/s | 3.5 GB available |
+
+So nema cannot host an Ollama model next to its llama.cpp router at all, and barely alone.
+**The working arrangement is: HA stays on nemo's Ollama, using `qwen3:4b` (pulled 2026-09-10),
+with nemo's `core` profile resident.** `gemma4:e4b` was unloaded; nemo `core` is up.
+
+### Repoint HA (operator, HA web UI — no agent access to HA)
+
+1. Settings → Devices & services → **Ollama** (the entry is titled with nemo's URL).
+2. Open the conversation-agent sub-entry (⋮ → **Reconfigure**, or **Configure** on older
+   versions). Set **Model** = `qwen3:4b` (the list comes from the server), **Keep alive** =
+   `300` seconds instead of `-1` so the 3.6 GB is only held around HA's calls, **Think** off
+   (Qwen3 spends tokens thinking otherwise), context window 8192 is fine. Submit.
+3. Verify from a shell on nemo:
+   ```bash
+   # [node] nemo
+   journalctl -u ollama -f          # expect POST /api/chat from 172.16.3.3 on the next HA call
+   curl -s localhost:11434/api/ps   # expect qwen3:4b, not gemma4:e4b
+   ```
+4. Optional clean-up on nemo: `ollama rm gemma4:e4b qwen3-vl:8b` frees 15.7 GB of a 116 GB
+   disk (21 GB free today). Keep them if you want the swap-back option.
+
+Until step 2 is done, HA's calls still ask for `gemma4:e4b`; with `core` resident Ollama will
+refuse the load (7 GB free < 10.6 GB needed) and HA's agent errors — no crash, but no answer.
+
+### If you still want HA on nema
+
+Only viable with nema's llama.cpp router **retired** (its cheap-router job moves to thor:8004
+`Qwen3-8B`) and preferably the NemoClaw k3s container removed: then `nemotron-3-nano:4b` fits
+at ~8 tok/s. In HA, ⋮ → Reconfigure on the Ollama entry to change the URL to
+`http://172.16.10.165:11434` (or add a second Ollama integration with that URL and switch the
+Assist pipeline / automation to the new agent), then `ACTION=down scripts/deploy.sh nema` and
+`scripts/deploy.sh nema embeddings`.
 
 ## 7. nema notes
 

@@ -47,7 +47,7 @@ services:
   embeddings:
     <<: *llama
     container_name: llm-embeddings
-    profiles: [core]
+    profiles: [core, embeddings]
     command:
       - llama-server
       - --model

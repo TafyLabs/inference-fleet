@@ -3,9 +3,9 @@
 #   quality  : 8081 Qwen3-14B Q4_K_M (swap-in; keep ctx small)
 #   vlm      : 8000 Qwen3-VL-4B — llama.cpp GGUF (default VLM path on this host)
 #   vlm-vllm : 8000 Qwen3-VL-4B AWQ via the Jetson AI Lab vLLM 0.19 image (alternative; ~20 GB image)
-# MEMORY: this host also runs system Ollama on :11434, which Home Assistant (172.16.3.3)
-# pins to gemma4:e4b (~10.6 GB, keep_alive=-1). With that resident only ~3 GB is free —
-# the core profile does NOT fit until HA's model is moved/shrunk. See docs/runbook.md.
+# MEMORY: this host also runs system Ollama on :11434 for Home Assistant (172.16.3.3).
+# HA's model must be qwen3:4b (3.6 GB loaded) — gemma4:e4b (10.6 GB) does not fit beside core.
+# Measured 2026-09-10: core + qwen3:4b = 11.7 GB used, 3.5 GB free. See docs/runbook.md §6.
 name: inference
 
 x-llama: &llama
