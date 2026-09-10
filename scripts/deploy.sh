@@ -29,6 +29,7 @@ profiles=(); for p in "$@"; do profiles+=(--profile "$p"); done
 ssh_opts=(-i "$SSH_KEY" -o BatchMode=yes -o ConnectTimeout=8 -o StrictHostKeyChecking=accept-new)
 echo "[sync] $src -> $SSH_USER@$node:~/inference/$node/"
 rsync -az --delete --exclude 'logs/' -e "ssh ${ssh_opts[*]}" "$src/" "$SSH_USER@$node:inference/$node/"
+rsync -az -e "ssh ${ssh_opts[*]}" "$here/scripts/bootstrap-node.sh" "$here/scripts/fetch-models.sh" "$SSH_USER@$node:inference/"
 
 case "$ACTION" in
   up)   remote="docker compose ${profiles[*]} up -d --remove-orphans && docker compose ${profiles[*]} ps" ;;

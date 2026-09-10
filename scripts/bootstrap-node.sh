@@ -2,9 +2,12 @@
 # bootstrap-node.sh — one-time prerequisites on an inference node. Needs sudo ONCE
 # (docker group + nvidia runtime). Everything else in this repo runs unprivileged.
 #
-#   ssh amigx@<node> 'bash -s' < scripts/bootstrap-node.sh
+#   scp scripts/bootstrap-node.sh amigx@<node>:inference/   # deploy.sh does this for you
+#   ssh -t amigx@<node> bash inference/bootstrap-node.sh      # -t so sudo can prompt
 #
-# Idempotent. After it runs, LOG OUT AND BACK IN so the docker group applies.
+# (Do NOT pipe the script over stdin with 'bash -s' — sudo then has no terminal to read
+# the password from.) Idempotent. After it runs, LOG OUT AND BACK IN so the docker
+# group applies.
 set -euo pipefail
 me="$(id -un)"
 

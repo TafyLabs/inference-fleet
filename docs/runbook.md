@@ -25,10 +25,13 @@ re-edit `dns/batfang.lab.snippet` when a lease rolls (`nema` already moved once)
 ## 1. One-time node bootstrap (thor, spark0 — needs sudo once)
 
 ```bash
-# [mac]
-ssh -i ~/.ssh/radlab -t amigx@thor   'bash -s' < scripts/bootstrap-node.sh
-ssh -i ~/.ssh/radlab -t amigx@spark0 'bash -s' < scripts/bootstrap-node.sh
+# [mac] — copies the script to the node, then runs it with a real terminal so sudo can prompt
+ACTION=sync scripts/deploy.sh thor   && ssh -i ~/.ssh/radlab -t amigx@thor   bash inference/bootstrap-node.sh
+ACTION=sync scripts/deploy.sh spark0 && ssh -i ~/.ssh/radlab -t amigx@spark0 bash inference/bootstrap-node.sh
 ```
+
+Piping the script over stdin (`'bash -s' < …`) does not work: with stdin taken, `ssh -t`
+cannot allocate a terminal and sudo has nowhere to read the password.
 
 It adds `amigx` to the `docker` group, registers the NVIDIA runtime with docker
 (`nvidia-ctk runtime configure --runtime=docker`), creates the directories, and installs the
