@@ -67,13 +67,15 @@ docs/                runbook.md (bring-up, cutover, troubleshooting) · profiles
 dns/                 batfang.lab records for the fleet
 ```
 
-## Status (2026-09-10)
+## Status (2026-09-10, end of day)
 
-- `nema` — deployed and validated (chat, tool calls, embeddings, VLM).
-- `nemo` — stack validated end to end, then taken down: the host's Ollama is pinned to
-  `gemma4:e4b` by Home Assistant and there is no room for both. Decision pending — see runbook.
-- `thor` — models downloaded; needs the one-time `bootstrap-node.sh` (sudo) and a cutover from the
-  legacy `vllm-qwen3-coder` container that still serves OpenFang on :8000.
-- `spark0` — models downloading; needs the one-time bootstrap (sudo). Nothing else on the box.
+| Node | Live | Notes |
+|---|---|---|
+| `nema` | `core` (9080 Qwen3-4B router, 9082 embeddings) | VLM validated as a swap-in only (router must stop first on 8 GB) |
+| `nemo` | nothing | stack validated end to end, then taken down: Home Assistant pins `gemma4:e4b` in the host's Ollama. Decision pending, runbook §6 |
+| `thor` | `robotics` + `agent` (8000 Qwen3.8-27B, 8001 Nemotron 3.5, 8002 Qwen3-VL-8B, 8004 Qwen3-8B) | upstream vLLM v0.27.1 proven on JetPack 7. Legacy `Qwen3-Coder-Next` container stopped (kept for rollback). 8 GB headroom with D+E both resident — run one profile if anything else needs memory |
+| `spark0` | `agent` = Profile A (8000 Qwen3.6-35B, 8001 Nemotron 3.5, 8004 Qwen3-8B) | Qwen3.6 at ~90 tok/s. 13 GB headroom |
+
+Lessons that cost a reboot each: a long-running vLLM on Thor left ~83 GB driver-held after a clean stop, and the Spark's GB10 had been wedged since an Xorg-triggered Xid 120 — both in the runbook's troubleshooting table.
 
 Vault context: `wiki/entities/local-inference-fleet.md` in the RobotDen vault.

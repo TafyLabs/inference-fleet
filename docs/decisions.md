@@ -31,6 +31,9 @@ deliberately differs, and why.
 
 ## Verified on 2026-09-10
 
+- thor `robotics`+`agent` on upstream vLLM v0.27.1 (arm64, CUDA 13, JetPack 7 r38.4): Qwen3-8B-NVFP4 healthy in 3 min; Qwen3.8-27B-NVFP4 in 11.5 min first start (tool call OK, image → "RED"); Qwen3-VL-8B AWQ in 7 min (image → "Red"); Nemotron 3.5 Lightning NVFP4 + DSpark draft in 6.5 min (tool call OK, reasoning split). GPU memory held per process: 8B 12.9 GB, 27B 29.1 GB, VL-8B 17.6 GB, Nemotron 28.5 GB. **Open question 1 and 2 below are answered: yes and yes.**
+- spark0 `agent` (Profile A): Qwen3-8B 3 min, Qwen3.6-35B-A3B-NVFP4 5 min (tool call OK, 200 tokens at 90.6 tok/s), Nemotron 3.5 + DSpark 5 min (tool call OK, reasoning split). 108 GB used / 13 GB free with all three resident.
+
 - nema `core`: `/v1/models`, chat (28.9 tok/s), OpenAI tool call, `/v1/embeddings` (768-d, unit norm).
 - nemo `core`+`vlm`: chat (14.7 tok/s), thinking split into `reasoning_content`, tool call.
 - DNS: `spark0` A record + five CNAMEs live on nsd0 and nsd1, serial 2026091001.
@@ -38,9 +41,11 @@ deliberately differs, and why.
 
 ## Open questions
 
-1. Does upstream vLLM v0.27.1 arm64 run on Thor's sm_110 with these NVFP4 checkpoints? (Blocked on docker access.)
-2. Nemotron 3.5 DSpark speculative decoding on Thor — NVIDIA validated it on GB10 only.
+1. ~~Does upstream vLLM v0.27.1 arm64 run on Thor's sm_110 with these NVFP4 checkpoints?~~ Yes (2026-09-10).
+2. ~~Nemotron 3.5 DSpark speculative decoding on Thor.~~ Starts and serves; throughput not yet measured against no-draft.
 3. NemoClaw on nema — still wanted? It costs 8080 and ~1 GB on an 8 GB board.
 4. Home Assistant's conversation agent — which of the four options in runbook §6.
 5. Static DHCP reservations for the four LAN addresses (UniFi) so the zone stops drifting.
 6. TensorRT Edge-LLM / GR00T VLA track on Thor — separate policy-model endpoint, not in this repo yet.
+7. OpenFang still points at `Qwen3-Coder-Next` on thor:8000 (now `Qwen3.8-27B`) and at `gemma-2-2b-cheap-router` on nema:9080 (now `qwen3-4b-instruct-2507`) — repoint in batclaw-openfang.
+8. Thor with D+E both resident has ~8 GB headroom; VL-8B uses 17.6 GB against a 0.10 (12 GB) budget because the vision encoder and CUDA graphs sit outside vLLM's KV accounting. Consider `--gpu-memory-utilization 0.08` for the VL sidecar or running D or E alone.
