@@ -131,26 +131,32 @@ nemo also runs system **Ollama** on :11434. Home Assistant (`172.16.3.3`,
 | nema (8 GB, router stopped) | `nemotron-3-nano:4b` | 5.3 GB | 8.1 tok/s | 559 MB available |
 | nema | `qwen3.5:4b` | 6.3 GB | 4.6 tok/s | 89 MB available (swapping) |
 | nema | `gemma4:e2b` | 7.8 GB | 8.5 tok/s | 230 MB available (swapping) |
-| nemo (16 GB, `core` resident) | `qwen3:4b` | 3.6 GB | 14.3 tok/s | 3.5 GB available |
+| nemo (16 GB, `core` resident) | `qwen3:4b-instruct-2507-q4_K_M` | 3.6 GB | 16 tok/s | 3.6 GB available |
+| nemo (`core` resident) | `qwen3:4b` (thinking variant) | 4.2 GB | 16 tok/s but 20 s/answer | 3.0 GB available |
 
 So nema cannot host an Ollama model next to its llama.cpp router at all, and barely alone.
-**The working arrangement is: HA stays on nemo's Ollama, using `qwen3:4b` (pulled 2026-09-10),
-with nemo's `core` profile resident.** `gemma4:e4b` was unloaded; nemo `core` is up.
+**The working arrangement is: HA stays on nemo's Ollama, using `qwen3:4b-instruct-2507-q4_K_M`
+(pulled 2026-09-10), with nemo's `core` profile resident.** `gemma4:e4b` was unloaded; nemo `core` is up.
+
+> Not `qwen3:4b`: on Ollama that tag is the *thinking* variant (262K ctx, no thinking toggle in
+> its template). With `think:false` it returns its reasoning monologue as the answer; with
+> `think:true` it answers correctly but takes ~20 s (986 chars of reasoning at 16 tok/s). The
+> instruct tag answers in ~1 s warm / 5 s cold and coexists with core at 3.6 GB spare.
 
 ### Repoint HA (operator, HA web UI — no agent access to HA)
 
 1. Settings → Devices & services → **Ollama** (the entry is titled with nemo's URL).
 2. Open the conversation-agent sub-entry (⋮ → **Reconfigure**, or **Configure** on older
-   versions). Set **Model** = `qwen3:4b` (the list comes from the server), **Keep alive** =
-   `300` seconds instead of `-1` so the 3.6 GB is only held around HA's calls, **Think** off
-   (Qwen3 spends tokens thinking otherwise), context window 8192 is fine. Submit.
+   versions). Set **Model** = `qwen3:4b-instruct-2507-q4_K_M` (the list comes from the server),
+   **Keep alive** = `300` seconds instead of `-1` so the 3.6 GB is only held around HA's calls,
+   context window 8192 is fine. Submit.
 3. Verify from a shell on nemo:
    ```bash
    # [node] nemo
    journalctl -u ollama -f          # expect POST /api/chat from 172.16.3.3 on the next HA call
    curl -s localhost:11434/api/ps   # expect qwen3:4b, not gemma4:e4b
    ```
-4. Optional clean-up on nemo: `ollama rm gemma4:e4b qwen3-vl:8b` frees 15.7 GB of a 116 GB
+4. Optional clean-up on nemo: `ollama rm gemma4:e4b qwen3-vl:8b qwen3:4b` frees 18 GB of a 116 GB
    disk (21 GB free today). Keep them if you want the swap-back option.
 
 Until step 2 is done, HA's calls still ask for `gemma4:e4b`; with `core` resident Ollama will
