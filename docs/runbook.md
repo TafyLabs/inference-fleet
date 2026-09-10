@@ -165,3 +165,4 @@ change this. Do not `systemctl disable ollama` on nemo until HA is repointed.
 | VLM returns 500 on an image | image must be ≥ 28×28 px (Qwen-VL patch size); tiny test pixels fail |
 | Home Assistant conversation slow after nemo work | HA's gemma4 was unloaded; first call reloads it (~30 s) |
 | name doesn't resolve | tailnet: `tailscale status`; lab: `dig @172.29.0.153 <name>.batfang.lab` |
+| container start fails with `failed to create the automatic CDI … GPU requires reset` (DGX Spark) | the GB10 itself is in a reset-required state: `nvidia-smi -q \| grep -i reset` shows it, kernel log shows `NVRM … NV_ERR_GPU_IN_FULLCHIP_RESET`. Nothing docker-side fixes it: `sudo nvidia-smi -r` or `sudo reboot`, then redeploy. Seen 2026-09-10 after 10 days uptime |
