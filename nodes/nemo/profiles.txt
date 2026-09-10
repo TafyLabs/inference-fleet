@@ -1,0 +1,4 @@
+core: qwen3-8b
+quality: qwen3-14b
+vlm: qwen3-vl-4b
+vlm-vllm: qwen3-vl-4b-awq

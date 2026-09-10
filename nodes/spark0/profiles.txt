@@ -1,0 +1,5 @@
+# start order per profile (router first, then main, then sidecars). Used by scripts/deploy.sh.
+agent: qwen3-8b qwen3_6-35b-a3b nemotron-3_5-lightning
+dev: qwen3-8b nemotron-3_5-lightning qwen3_8-27b
+heavy: nemotron-3-super-120b
+multimodal: nemotron-omni

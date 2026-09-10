@@ -1,0 +1,2 @@
+core: qwen3-4b embeddings
+vlm: qwen3-vl-2b
