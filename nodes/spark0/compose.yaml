@@ -1,0 +1,276 @@
+# spark0 — DGX Spark 128GB — vLLM, one container per model slot, host networking.
+#
+#   agent      (Profile A): 8000 Qwen3.6-35B-A3B-NVFP4 · 8001 Nemotron-3.5-Lightning · 8004 Qwen3-8B
+#   dev        (Profile B): 8002 Qwen3.8-27B-NVFP4      · 8001 Nemotron-3.5-Lightning · 8004 Qwen3-8B
+#   heavy      (Profile C): 8005 Nemotron-3-Super-120B-A12B-NVFP4 — alone
+#   multimodal            : 8003 Nemotron-3-Nano-Omni — swap-in, replaces 8001 or 8002 (not on top of a full profile)
+#
+# Memory (fraction of 128 GB per container): agent 0.10+0.40+0.25=0.75 · dev 0.10+0.25+0.30=0.65 · heavy 0.88
+# Flags are NVIDIA's DGX Spark recipes from each model card (marlin MoE backend, fp8 KV, MTP/DSpark speculation).
+name: inference
+
+x-vllm: &vllm
+  image: ${VLLM_IMAGE}
+  runtime: nvidia
+  network_mode: host
+  ipc: host
+  shm_size: "32g"
+  restart: unless-stopped
+  stop_grace_period: 90s
+  ulimits: { memlock: -1, stack: 67108864 }
+  environment: &vllm-env
+    HF_HOME: /root/.cache/huggingface
+    HF_HUB_OFFLINE: "1"
+    VLLM_NVFP4_GEMM_BACKEND: marlin
+    VLLM_USE_FLASHINFER_MOE_FP4: "0"
+    VLLM_FLASHINFER_ALLREDUCE_BACKEND: trtllm
+    VLLM_ALLOW_LONG_MAX_MODEL_LEN: "1"
+  volumes:
+    - ${HF_HOME}:/root/.cache/huggingface
+    - ${VLLM_CACHE}:/root/.cache/vllm
+  entrypoint: ["vllm", "serve"]
+  logging: { driver: json-file, options: { max-size: "50m", max-file: "3" } }
+
+x-health: &health
+  interval: 30s
+  timeout: 10s
+  retries: 20
+  start_period: 1800s
+
+services:
+  qwen3-8b:
+    <<: *vllm
+    container_name: llm-qwen3-8b
+    profiles: [agent, dev]
+    command:
+      - nvidia/Qwen3-8B-NVFP4
+      - --served-model-name
+      - Qwen3-8B
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8004"
+      - --gpu-memory-utilization
+      - "0.10"
+      - --max-model-len
+      - "32768"
+      - --max-num-seqs
+      - "8"
+      - --kv-cache-dtype
+      - fp8
+      - --enable-prefix-caching
+      - --reasoning-parser
+      - qwen3
+      - --enable-auto-tool-choice
+      - --tool-call-parser
+      - hermes
+    healthcheck:
+      <<: *health
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8004/health',timeout=5)\""]
+
+  # NVIDIA vLLM / OpenClaw / Hermes DGX Spark playbook recipe, verbatim flags.
+  qwen3_6-35b-a3b:
+    <<: *vllm
+    container_name: llm-qwen3.6-35b-a3b
+    profiles: [agent]
+    depends_on:
+      qwen3-8b: { condition: service_healthy }
+    command:
+      - nvidia/Qwen3.6-35B-A3B-NVFP4
+      - --served-model-name
+      - Qwen3.6-35B-A3B
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --tensor-parallel-size
+      - "1"
+      - --trust-remote-code
+      - --kv-cache-dtype
+      - fp8
+      - --attention-backend
+      - flashinfer
+      - --moe-backend
+      - marlin
+      - --gpu-memory-utilization
+      - "0.40"
+      - --max-model-len
+      - "262144"
+      - --max-num-seqs
+      - "4"
+      - --max-num-batched-tokens
+      - "8192"
+      - --enable-chunked-prefill
+      - --async-scheduling
+      - --enable-prefix-caching
+      - --speculative-config
+      - '{"method":"mtp","num_speculative_tokens":3,"moe_backend":"triton"}'
+      - --load-format
+      - fastsafetensors
+      - --reasoning-parser
+      - qwen3
+      - --tool-call-parser
+      - qwen3_xml
+      - --enable-auto-tool-choice
+    healthcheck:
+      <<: *health
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=5)\""]
+
+  nemotron-3_5-lightning:
+    <<: *vllm
+    container_name: llm-nemotron-3.5-lightning
+    profiles: [agent, dev]
+    depends_on:
+      qwen3-8b: { condition: service_healthy }
+    command:
+      - nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4
+      - --served-model-name
+      - Nemotron-3.5-Lightning-30B-A3B
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8001"
+      - --gpu-memory-utilization
+      - "0.25"
+      - --max-model-len
+      - "262144"
+      - --max-num-seqs
+      - "8"
+      - --moe-backend
+      - marlin
+      - --kv-cache-dtype
+      - fp8
+      - --enable-prefix-caching
+      - --mamba-backend
+      - flashinfer
+      - --mamba-cache-mode
+      - align
+      - --speculative-config
+      - '{"model":"nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark","num_speculative_tokens":3}'
+      - --reasoning-parser
+      - nemotron_v3
+      - --enable-auto-tool-choice
+      - --tool-call-parser
+      - qwen3_coder
+    healthcheck:
+      <<: *health
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8001/health',timeout=5)\""]
+
+  qwen3_8-27b:
+    <<: *vllm
+    container_name: llm-qwen3.8-27b
+    profiles: [dev]
+    depends_on:
+      nemotron-3_5-lightning: { condition: service_healthy }
+    command:
+      - nvidia/Qwen3.8-27B-NVFP4
+      - --served-model-name
+      - Qwen3.8-27B
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8002"
+      - --gpu-memory-utilization
+      - "0.30"
+      - --max-model-len
+      - "131072"
+      - --max-num-seqs
+      - "8"
+      - --max-num-batched-tokens
+      - "16384"
+      - --kv-cache-dtype
+      - fp8_e4m3
+      - --enable-chunked-prefill
+      - --enable-prefix-caching
+      - --mm-encoder-tp-mode
+      - data
+      - --limit-mm-per-prompt
+      - '{"image":4,"video":1}'
+      - --seed
+      - "0"
+      - --reasoning-parser
+      - qwen3
+      - --enable-auto-tool-choice
+      - --tool-call-parser
+      - qwen3_coder
+    healthcheck:
+      <<: *health
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8002/health',timeout=5)\""]
+
+  nemotron-omni:
+    <<: *vllm
+    container_name: mm-nemotron-omni
+    profiles: [multimodal]
+    volumes:
+      - ${HF_HOME}:/root/.cache/huggingface
+      - ${VLLM_CACHE}:/root/.cache/vllm
+      - ${MEDIA_DIR}:/media:ro
+    entrypoint: ["/bin/bash", "-lc"]
+    command:
+      - >-
+        python3 -m pip install -q "vllm[audio]" >/dev/null 2>&1 || true;
+        exec vllm serve nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning-NVFP4
+        --served-model-name Nemotron-3-Nano-Omni-30B-A3B
+        --host 0.0.0.0 --port 8003
+        --gpu-memory-utilization 0.25
+        --max-model-len 131072 --max-num-seqs 8 --max-num-batched-tokens 32768
+        --trust-remote-code
+        --limit-mm-per-prompt '{"video":1,"image":1,"audio":1}'
+        --media-io-kwargs '{"video":{"fps":2,"num_frames":256}}'
+        --allowed-local-media-path /media
+        --enable-prefix-caching --kv-cache-dtype fp8
+        --reasoning-parser nemotron_v3 --enable-auto-tool-choice --tool-call-parser qwen3_coder
+    healthcheck:
+      <<: *health
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8003/health',timeout=5)\""]
+
+  # Heavy reasoning swap-in. Runs ALONE (0.88 of the pool). NVIDIA DGX Spark recipe verbatim.
+  nemotron-3-super-120b:
+    <<: *vllm
+    container_name: llm-nemotron-3-super-120b
+    profiles: [heavy]
+    volumes:
+      - ${HF_HOME}:/root/.cache/huggingface
+      - ${VLLM_CACHE}:/root/.cache/vllm
+      - ${PLUGINS_DIR}/super_v3_reasoning_parser.py:/app/super_v3_reasoning_parser.py:ro
+    command:
+      - nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4
+      - --served-model-name
+      - Nemotron-3-Super-120B-A12B
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8005"
+      - --async-scheduling
+      - --dtype
+      - auto
+      - --kv-cache-dtype
+      - fp8
+      - --tensor-parallel-size
+      - "1"
+      - --trust-remote-code
+      - --gpu-memory-utilization
+      - "0.88"
+      - --enable-chunked-prefill
+      - --max-num-seqs
+      - "4"
+      - --max-model-len
+      - "262144"
+      - --moe-backend
+      - marlin
+      - --mamba-ssm-cache-dtype
+      - float16
+      - --quantization
+      - fp4
+      - --speculative-config
+      - '{"method":"mtp","num_speculative_tokens":3,"model":"nvidia/Nemotron-3-Super-120B-A12B-BF16-MTPv2","moe_backend":"triton"}'
+      - --reasoning-parser-plugin
+      - /app/super_v3_reasoning_parser.py
+      - --reasoning-parser
+      - super_v3
+      - --enable-auto-tool-choice
+      - --tool-call-parser
+      - qwen3_coder
+    healthcheck:
+      <<: *health
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8005/health',timeout=5)\""]

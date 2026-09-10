@@ -1,0 +1,10 @@
+# spark0 — DGX Spark 128GB — vLLM
+hf nvidia/Qwen3.6-35B-A3B-NVFP4
+hf nvidia/Qwen3-8B-NVFP4
+hf nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4
+hf nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4-DSpark
+hf nvidia/Qwen3.8-27B-NVFP4
+hf nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning-NVFP4
+hf nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4
+hf nvidia/Nemotron-3-Super-120B-A12B-BF16-MTPv2
+plugin nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4 super_v3_reasoning_parser.py

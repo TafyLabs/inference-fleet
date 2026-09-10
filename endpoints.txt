@@ -1,0 +1,19 @@
+# host   port  served-model-name                          role           (resident|swap-in)  profile
+# Names are tailnet MagicDNS short names (also *.batfang.lab in the lab). See docs/runbook.md.
+nema     9080  qwen3-4b-instruct-2507                     text-router     resident   core
+nema     9081  qwen3-vl-2b-instruct                       snapshot-vlm    swap-in    vlm
+nema     9082  nomic-embed-text-v1.5                      embeddings      resident   core
+nemo     8080  qwen3-8b                                   text-daily      resident   core
+nemo     8081  qwen3-14b                                  text-quality    swap-in    quality
+nemo     8000  qwen3-vl-4b-instruct                       vlm             swap-in    vlm
+thor     8000  Qwen3.8-27B                                planner/coder   resident   robotics
+thor     8001  Nemotron-3.5-Lightning-30B-A3B             agent-engine    resident   agent
+thor     8002  Qwen3-VL-8B-Instruct                       fast-vlm        resident   robotics
+thor     8003  Nemotron-3-Nano-Omni-30B-A3B               multimodal      swap-in    multimodal
+thor     8004  Qwen3-8B                                   router/validator resident  robotics,agent
+spark0   8000  Qwen3.6-35B-A3B                            main-agent      resident   agent
+spark0   8001  Nemotron-3.5-Lightning-30B-A3B             fast-agent      resident   agent,dev
+spark0   8002  Qwen3.8-27B                                dev/coding      swap-in    dev
+spark0   8003  Nemotron-3-Nano-Omni-30B-A3B               multimodal      swap-in    multimodal
+spark0   8004  Qwen3-8B                                   router/validator resident  agent,dev
+spark0   8005  Nemotron-3-Super-120B-A12B                 heavy-reasoning swap-in    heavy

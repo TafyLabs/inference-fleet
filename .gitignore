@@ -1,0 +1,7 @@
+# local overrides / secrets — never commit
+.env.local
+*.local.env
+**/secrets/
+*.token
+# host-side runtime artifacts synced back for inspection
+**/logs/

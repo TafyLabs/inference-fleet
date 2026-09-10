@@ -1,0 +1,18 @@
+; batfang.lab zone (nsd0 = pve1 CT105, 172.29.0.153; nsd1 = pve2 CT103, 172.29.1.153)
+; Records for the inference fleet. Home-LAN IPs on VLAN 1 (172.16.x) are DHCP —
+; pin them as static reservations on the UniFi gateway or re-edit this zone when leases roll.
+; Applied 2026-09-10, serial 2026091001.
+
+nema             IN A    172.16.10.165
+nemo             IN A    172.16.1.223
+thor             IN A    172.29.4.167
+spark0           IN A    172.16.10.76
+
+; aliases matching the names in the runtime/model table; canonical hostnames stay short
+orin-nano        IN CNAME nema
+orin-super-nano  IN CNAME nema
+orin-nx          IN CNAME nemo
+thor-agx         IN CNAME thor
+dgx-spark        IN CNAME spark0
+
+; Apply: pct exec 105 -- bash -c 'nsd-checkzone batfang.lab /etc/nsd/zones/batfang.lab.zone && nsd-control reload batfang.lab && nsd-control notify batfang.lab'
