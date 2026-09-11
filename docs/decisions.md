@@ -44,7 +44,7 @@ deliberately differs, and why.
 1. ~~Does upstream vLLM v0.27.1 arm64 run on Thor's sm_110 with these NVFP4 checkpoints?~~ Yes (2026-09-10).
 2. ~~Nemotron 3.5 DSpark speculative decoding on Thor.~~ Starts and serves; throughput not yet measured against no-draft.
 3. NemoClaw on nema — still wanted? It costs 8080 and ~1 GB on an 8 GB board.
-4. ~~Home Assistant's conversation agent~~ — stays on nemo's Ollama with `qwen3:4b-instruct-2507-q4_K_M`; operator switches the model in the HA UI (runbook §6).
+4. ~~Home Assistant's conversation agent~~ — on nemo's Ollama with `qwen3:4b-instruct-2507-q4_K_M`, verified live 2026-09-10 19:30 (two chat calls, 18 s cold / 1.2 s warm, core unaffected, 2.8 GB free).
 5. Static DHCP reservations for the four LAN addresses (UniFi) so the zone stops drifting.
 6. TensorRT Edge-LLM / GR00T VLA track on Thor — separate policy-model endpoint, not in this repo yet.
 7. OpenFang still points at `Qwen3-Coder-Next` on thor:8000 (now `Qwen3.8-27B`) and at `gemma-2-2b-cheap-router` on nema:9080 (now `qwen3-4b-instruct-2507`) — repoint in batclaw-openfang.
