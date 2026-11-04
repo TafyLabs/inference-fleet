@@ -7,6 +7,8 @@
 #
 # Memory (fraction of 128 GB per container): agent 0.10+0.40+0.25=0.75 · dev 0.10+0.25+0.30=0.65 · heavy 0.88
 # Flags are NVIDIA's DGX Spark recipes from each model card (marlin MoE backend, fp8 KV, MTP/DSpark speculation).
+# After a reboot or power cut dockerd restarts every unless-stopped container at once and skips depends_on,
+# so the entrypoint also takes a start lock (x-vllm below): one vLLM loads at a time however it was started.
 name: inference
 
 x-vllm: &vllm
@@ -28,7 +30,31 @@ x-vllm: &vllm
   volumes:
     - ${HF_HOME}:/root/.cache/huggingface
     - ${VLLM_CACHE}:/root/.cache/vllm
-  entrypoint: ["vllm", "serve"]
+  # Start lock (2026-11-04, after the 11-03 power cut; Nemotron lost the boot race here, Thor's 27B crash-looped):
+  # flock on a file in the shared vLLM cache, held from before `vllm serve` until this container's --port answers
+  # /health (at most 45 min), and dropped at once if vLLM exits. The command list is unchanged.
+  entrypoint:
+    - /bin/sh
+    - -c
+    - |
+      lock=$${VLLM_START_LOCK:-/root/.cache/vllm/.start.lock}; port=8000; prev=
+      for a in "$$@"; do [ "$$prev" = --port ] && port=$$a; prev=$$a; done
+      exec 9>>"$$lock"
+      echo "[start-lock] waiting for $$lock (port $$port)"
+      flock 9
+      echo "[start-lock] held: loading (port $$port)"
+      self=$$$$
+      (
+        end=$$(( $$(date +%s) + $${VLLM_START_LOCK_MAX_S:-2700} ))
+        while kill -0 "$$self" 2>/dev/null && [ "$$(date +%s)" -lt "$$end" ]; do
+          python3 -c "import sys,urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/health' % sys.argv[1], timeout=5)" "$$port" 2>/dev/null && break
+          sleep 10
+        done
+        echo "[start-lock] released (port $$port)"
+      ) &
+      exec 9>&-
+      exec vllm serve "$$@"
+    - vllm-start
   logging: { driver: json-file, options: { max-size: "50m", max-file: "3" } }
 
 x-health: &health

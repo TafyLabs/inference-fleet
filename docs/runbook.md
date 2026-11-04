@@ -75,7 +75,10 @@ scripts/healthcheck.sh [node]         # /v1/models + a 16-token chat on each end
 ```
 
 `deploy.sh` rsyncs `nodes/<node>/` to `~/inference/<node>/` on the host and runs
-`docker compose --profile … up -d`. Containers restart on reboot (`unless-stopped`).
+`docker compose --profile … up -d`. Containers restart on reboot (`unless-stopped`). dockerd restarts them
+all at once and skips compose's start order, so every vLLM entrypoint takes a start lock
+(`~/.cache/vllm/.start.lock`): it loads only while no other vLLM on the box is loading, and lets go once its
+port answers `/health` (`[start-lock]` lines in `docker logs`). See `docs/decisions.md`, "Start lock".
 
 ## 4. thor cutover (the one manual step that touches a live consumer)
 
@@ -196,7 +199,8 @@ Assist pipeline / automation to the new agent), then `ACTION=down scripts/deploy
 | MoE NVFP4 model slow / wrong on GB10 or Thor | `VLLM_USE_FLASHINFER_MOE_FP4=0` + `--moe-backend marlin` are set; don't remove them |
 | Nemotron 3.5 fails on the DSpark draft | drop the `--speculative-config` line; it is an optimization only |
 | vLLM on Thor: `Free memory on device cuda:0 (20/122 GiB) … is less than desired GPU memory utilization` right after stopping another big model | on JetPack 7 (r38.4) the stopped container's GPU allocation can stay owned by the driver after a clean exit: `free` shows ~85 GB used with no process holding it (`nvidia-smi --query-compute-apps` lists only live PIDs). Observed 2026-09-10 after stopping the 10-day-old `vllm-qwen3-coder`. Only a reboot released it. Plan cutovers as: stop old → reboot → deploy |
+| after a reboot or power cut, one vLLM crash-loops on `Free memory on device … is less than desired` | the boot race the start lock now prevents (`docker logs <name> \| grep start-lock`). If it looped before the lock was deployed, its failed starts can leave memory owned by the driver: `docker update --restart=no <name>`, reboot, then `scripts/deploy.sh <node> <profiles>`. Seen on thor 2026-11-03 (27B, 2,247 restarts) |
 | VLM returns 500 on an image | image must be ≥ 28×28 px (Qwen-VL patch size); tiny test pixels fail |
 | Home Assistant conversation slow after nemo work | HA's gemma4 was unloaded; first call reloads it (~30 s) |
 | name doesn't resolve | tailnet: `tailscale status`; lab: `dig @172.29.0.153 <name>.batfang.lab` |
-| container start fails with `failed to create the automatic CDI … GPU requires reset` (DGX Spark) | the GB10 itself is in a reset-required state: `nvidia-smi -q \| grep -i reset` shows it, kernel log shows `NVRM … NV_ERR_GPU_IN_FULLCHIP_RESET`. Nothing docker-side fixes it: `sudo nvidia-smi -r` or `sudo reboot`, then redeploy. Seen 2026-09-10 after 10 days uptime |
+| container start fails with `failed to create the automatic CDI … GPU requires reset` (DGX Spark) | the GB10 itself is in a reset-required state: `nvidia-smi -q \| grep -i reset` shows it, kernel log shows `NVRM … NV_ERR_GPU_IN_FULLCHIP_RESET`. Nothing docker-side fixes it: `sudo nvidia-smi -r` or `sudo reboot`, then redeploy. Seen 2026-09-10 after 10 days uptime, and 2026-11-03: both times Xid 120 from Xorg (the desktop session). spark0 now boots to `multi-user.target` (no desktop) |

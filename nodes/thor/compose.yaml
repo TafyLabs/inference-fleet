@@ -8,6 +8,8 @@
 #   robotics = 0.10+0.30+0.10 = 0.50   agent = 0.10+0.25 = 0.35   both = 0.75   +omni 0.25 = 1.00 (too much)
 # Run omni INSTEAD of nemotron or the VL sidecar, not on top of both.
 # Start order is serialized with depends_on/healthchecks so each vLLM profiles memory alone.
+# After a reboot or power cut dockerd restarts every unless-stopped container at once and skips depends_on,
+# so the entrypoint also takes a start lock (x-vllm below): one vLLM loads at a time however it was started.
 # First start of each model compiles graphs (10–20 min); ~/.cache/vllm persists them.
 # Port 8001 used to be reserved for faster-whisper (batclaw-openfang audio_base_url) —
 # whisper moves to 8100 when it is redeployed.
@@ -31,7 +33,31 @@ x-vllm: &vllm
   volumes:
     - ${HF_HOME}:/root/.cache/huggingface
     - ${VLLM_CACHE}:/root/.cache/vllm
-  entrypoint: ["vllm", "serve"]
+  # Start lock (2026-11-04, after the 11-03 power cut left the 27B crash-looping 2,247 times on "free memory <
+  # utilization"): flock on a file in the shared vLLM cache, held from before `vllm serve` until this container's
+  # --port answers /health (at most 45 min), and dropped at once if vLLM exits. The command list is unchanged.
+  entrypoint:
+    - /bin/sh
+    - -c
+    - |
+      lock=$${VLLM_START_LOCK:-/root/.cache/vllm/.start.lock}; port=8000; prev=
+      for a in "$$@"; do [ "$$prev" = --port ] && port=$$a; prev=$$a; done
+      exec 9>>"$$lock"
+      echo "[start-lock] waiting for $$lock (port $$port)"
+      flock 9
+      echo "[start-lock] held: loading (port $$port)"
+      self=$$$$
+      (
+        end=$$(( $$(date +%s) + $${VLLM_START_LOCK_MAX_S:-2700} ))
+        while kill -0 "$$self" 2>/dev/null && [ "$$(date +%s)" -lt "$$end" ]; do
+          python3 -c "import sys,urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/health' % sys.argv[1], timeout=5)" "$$port" 2>/dev/null && break
+          sleep 10
+        done
+        echo "[start-lock] released (port $$port)"
+      ) &
+      exec 9>&-
+      exec vllm serve "$$@"
+    - vllm-start
   logging: { driver: json-file, options: { max-size: "50m", max-file: "3" } }
 
 x-health: &health

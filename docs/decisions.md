@@ -39,6 +39,25 @@ deliberately differs, and why.
 - DNS: `spark0` A record + five CNAMEs live on nsd0 and nsd1, serial 2026091001.
 - Every checkpoint in the table exists on Hugging Face, none gated; sizes recorded in `nodes/*/models.txt` commits.
 
+## Start lock and console boot (2026-11-04)
+
+- **Every vLLM entrypoint serializes its own load** (`x-vllm` in `nodes/thor/compose.yaml` and
+  `nodes/spark0/compose.yaml`). It takes an `flock` on `~/.cache/vllm/.start.lock`, the cache every model on a
+  node already mounts. The lock is held from before `vllm serve` until that container's `--port` answers `/health`
+  (at most 45 min, `VLLM_START_LOCK_MAX_S`), and it drops at once if vLLM exits.
+  - **Why:** depends_on and deploy.sh only order a deploy. After a reboot or power cut dockerd restarts every
+    `unless-stopped` container at once. On 2026-11-03 that left thor's 27B crash-looping 2,247 times ("free
+    memory 18.95/122.82 GiB < 0.30"), and its failed starts held memory until a reboot. spark0's Nemotron lost the
+    same race once and recovered.
+  - **Rejected:**
+    - `restart: "no"` plus an ordered boot unit: it loses crash recovery and needs sudo on each box;
+    - a fixed wait-for-port chain: it hangs whenever a profile leaves out the service it waits on.
+  - **Tested** with a fake `vllm` (4 concurrent starts, one crashing mid-load). Loads never overlapped, and the crash
+    released the lock within one 10 s poll.
+  - The omni swap-ins keep their own entrypoint; start them by hand after the others are healthy.
+- **spark0 boots to `multi-user.target` (no desktop).** Xorg crashed the GB10's GSP twice (Xid 120, 08-31 and 11-03),
+  leaving "GPU requires reset" while the containers still reported healthy. Thor was already console-only.
+
 ## Open questions
 
 1. ~~Does upstream vLLM v0.27.1 arm64 run on Thor's sm_110 with these NVFP4 checkpoints?~~ Yes (2026-09-10).
